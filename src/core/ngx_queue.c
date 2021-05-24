@@ -14,6 +14,7 @@
  * or the first element of the queue's second part otherwise
  */
 
+// 快慢指针寻找双向链表的中点
 ngx_queue_t *
 ngx_queue_middle(ngx_queue_t *queue)
 {
@@ -47,6 +48,7 @@ ngx_queue_middle(ngx_queue_t *queue)
 
 /* the stable insertion sort */
 
+// 链表的插入排序
 void
 ngx_queue_sort(ngx_queue_t *queue,
     ngx_int_t (*cmp)(const ngx_queue_t *, const ngx_queue_t *))
