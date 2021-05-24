@@ -172,6 +172,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
             ls[i].socklen = sizeof(ngx_sockaddr_t);
         }
 
+        // 协议族选取
         switch (ls[i].sockaddr->sa_family) {
 
 #if (NGX_HAVE_INET6)
@@ -188,6 +189,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
             break;
 #endif
 
+        // 大部分的代码运行会走到这里
         case AF_INET:
             ls[i].addr_text_max_len = NGX_INET_ADDRSTRLEN;
             len = NGX_INET_ADDRSTRLEN + sizeof(":65535") - 1;
@@ -214,10 +216,14 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
 
         ls[i].addr_text.len = len;
 
+        // 默认为 511
         ls[i].backlog = NGX_LISTEN_BACKLOG;
 
         olen = sizeof(int);
 
+        // 下面的代码都是在获取监听 socket 的一些状态，或者说属性，然后赋值到 ls 数组中的 ngc_listening_t 对象的成员中
+
+        // 获取 socket 类型
         if (getsockopt(ls[i].fd, SOL_SOCKET, SO_TYPE, (void *) &ls[i].type,
                        &olen)
             == -1)
@@ -230,6 +236,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
 
         olen = sizeof(int);
 
+        // 获取 socket 接收缓冲区大小
         if (getsockopt(ls[i].fd, SOL_SOCKET, SO_RCVBUF, (void *) &ls[i].rcvbuf,
                        &olen)
             == -1)
@@ -243,6 +250,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
 
         olen = sizeof(int);
 
+        // 获取 socket 发送缓冲区大小
         if (getsockopt(ls[i].fd, SOL_SOCKET, SO_SNDBUF, (void *) &ls[i].sndbuf,
                        &olen)
             == -1)
@@ -296,6 +304,7 @@ ngx_set_inherited_sockets(ngx_cycle_t *cycle)
 
 #else
 
+        // 注意，SO_REUSEPORT 和 SO_REUSEADDR 这两个 socket 属性是完全不相同的概念
         if (getsockopt(ls[i].fd, SOL_SOCKET, SO_REUSEPORT,
                        (void *) &reuseport, &olen)
             == -1)

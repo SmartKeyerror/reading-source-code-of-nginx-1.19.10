@@ -17,31 +17,23 @@ typedef struct ngx_listening_s  ngx_listening_t;
 
 // ngx_listening_t 表示着 Nginx 的一个监听端口，通常会有 2 个，一个是 80 端口，另一个则是 443 端口
 struct ngx_listening_s {
-    // 监听套接字的 socket fd
-    ngx_socket_t        fd;
 
-    // 监听套接字的监听地址
-    struct sockaddr    *sockaddr;
-    // sockaddr 的长度
-    socklen_t           socklen;    /* size of sockaddr */
+    ngx_socket_t        fd;                   // 监听套接字的 socket fd
+
+    struct sockaddr    *sockaddr;             // 监听套接字的监听地址
+    socklen_t           socklen;              // sockaddr 的长度
     size_t              addr_text_max_len;
 
-    // 字符串形式所保存的 ip 地址
-    ngx_str_t           addr_text;
+    ngx_str_t           addr_text;            // 字符串形式所保存的 ip 地址
 
-    // 监听套接字类型，通常为 SOCK_STREAM
-    int                 type;
+    int                 type;                 // 监听套接字类型，通常为 SOCK_STREAM
 
-    // 已完成连接队列的最大长度
-    int                 backlog;
+    int                 backlog;              // 已完成连接队列的最大长度
 
-    // socket 接收缓冲区的大小
-    int                 rcvbuf;
-    // socket 发送缓冲区的大小
-    int                 sndbuf;
+    int                 rcvbuf;               // socket 接收缓冲区的大小
+    int                 sndbuf;               // socket 发送缓冲区的大小
 #if (NGX_HAVE_KEEPALIVE_TUNABLE)
-    // 下面是 TCP Keep-Alive 选项
-    int                 keepidle;
+    int                 keepidle;             // TCP Keep-Alive 选项
     int                 keepintvl;
     int                 keepcnt;
 #endif
@@ -55,8 +47,7 @@ struct ngx_listening_s {
     ngx_log_t           log;
     ngx_log_t          *logp;
 
-    // 内存池大小
-    size_t              pool_size;
+    size_t              pool_size;             // 内存池大小
     /* should be here because of the AcceptEx() preread */
     // TODO: 暂时不知道这个参数是干嘛的，后续再填坑
     size_t              post_accept_buffer_size;
@@ -66,7 +57,7 @@ struct ngx_listening_s {
 
     // ngx_connection_t 可以好好说道说道，ngx_connection_t 表示一个 TCP 连接，或者说一个感兴趣的事件，不管是监听套接字，还是连接套接字，都会
     // 使用 ngx_connection_t 来进行表示，这里面保存了相当丰富的信息，比如对端的 IP 地址、端口号，所接收的数据，等等等等。该结构与 nginx epoll 模型
-    // 有着千丝万缕的关系，同样是 nginx 的核心结构之一
+    // 有着千丝万缕的关系，同样是 nginx 的核心结构之一，定义在 ngx_core.h 中，从文件名就可以看出其重要性了
     ngx_connection_t   *connection;
 
     // 红黑树的结构，暂时也不知道是干啥的

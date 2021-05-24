@@ -299,7 +299,7 @@ main(int argc, char *const *argv)
     // slab 初始化
     ngx_slab_sizes_init();
 
-    // 创建监听套接字
+    // 创建监听套接字，核心函数
     if (ngx_add_inherited_sockets(&init_cycle) != NGX_OK) {
         return 1;
     }
@@ -503,8 +503,11 @@ ngx_add_inherited_sockets(ngx_cycle_t *cycle)
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                   "using inherited sockets from \"%s\"", inherited);
 
-    // cycle->listening 是一个 ngx_array_t 结构体变量，而 ngx_array_t 其实是一个动态数组。这里初始化的时候给了 10 个容量，后续如果需要的话，
-    // cycle->listening 也能够动态扩容
+    /*
+     * cycle->listening 是一个 ngx_array_t 结构体变量，而 ngx_array_t 其实是一个动态数组，在这里保存的时 ngx_listening_t 对象，即监听端口对象
+     * 这里初始化的时候给了 10 个容量，后续如果需要的话，cycle->listening 也能够动态扩容。
+     * 这里没明白的是 ngx_listening_t 包含了一个 previous 指针，表示指向前一个 ngx_listening_t 对象，这个指针在何处有使用?
+     */
     if (ngx_array_init(&cycle->listening, cycle->pool, 10,
                        sizeof(ngx_listening_t))
         != NGX_OK)
@@ -512,6 +515,7 @@ ngx_add_inherited_sockets(ngx_cycle_t *cycle)
         return NGX_ERROR;
     }
 
+    // TODO: 这一段 for 循环看的云里雾里的，到时候 DEBUG 跟踪一下
     for (p = inherited, v = p; *p; p++) {
         if (*p == ':' || *p == ';') {
             s = ngx_atoi(v, p - v);
@@ -525,6 +529,7 @@ ngx_add_inherited_sockets(ngx_cycle_t *cycle)
 
             v = p + 1;
 
+            // 在 cycle->listening 的动态数组中新增一个元素，并返回新增元素的地址。这种方式在 ngx_list_t 中也有使用
             ls = ngx_array_push(&cycle->listening);
             if (ls == NULL) {
                 return NGX_ERROR;
@@ -532,6 +537,7 @@ ngx_add_inherited_sockets(ngx_cycle_t *cycle)
 
             ngx_memzero(ls, sizeof(ngx_listening_t));
 
+            // 这里保存的是 socket 描述符
             ls->fd = (ngx_socket_t) s;
             ls->inherited = 1;
         }

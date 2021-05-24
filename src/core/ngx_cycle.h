@@ -37,28 +37,36 @@ struct ngx_shm_zone_s {
 
 
 struct ngx_cycle_s {
-    void                  ****conf_ctx;
-    ngx_pool_t               *pool;
 
-    ngx_log_t                *log;
-    ngx_log_t                 new_log;
+    // 4 个 * 看着都头晕。conf_ctx 是一个数组，每一个数组成员又是一个指针，该指针指向另一个存储着指针的数组，所以是 4 个指针
+    void                  ****conf_ctx;
+    ngx_pool_t               *pool;                         // nginx 内存池，ngx_list_t 中的内存就是由 ngx_pool_t 所分配的
+
+    ngx_log_t                *log;                          // 初始化完成前的日志对象指针
+    ngx_log_t                 new_log;                      // 初始化完成后的日志对象
 
     ngx_uint_t                log_use_stderr;  /* unsigned  log_use_stderr:1; */
 
     ngx_connection_t        **files;
+
+    /* 可用空闲连接指针，free_connections 和下面的 connections 共同组成一个 TCP 连接池。其中 connections 指向整个连接池数组的首地址，
+     * free_connections 则指向一个可用的空闲连接，nginx 在启动时就会初始化 connections 数组。当有新的 TCP 连接建立时，nginx 从 free_connections
+     * 取出一个空闲连接，并将 free_connections 指向单向链表的下一个节点。当连接关闭需要归还连接时，将其插入到 free_connections 的头结点即可
+     */
     ngx_connection_t         *free_connections;
-    ngx_uint_t                free_connection_n;
+    ngx_uint_t                free_connection_n;            // 空闲连接数量，也就是还能够分配出多少个连接出去
 
     ngx_module_t            **modules;
     ngx_uint_t                modules_n;
     ngx_uint_t                modules_used;    /* unsigned  modules_used:1; */
 
-    ngx_queue_t               reusable_connections_queue;
-    ngx_uint_t                reusable_connections_n;
+    ngx_queue_t               reusable_connections_queue;   // 双向链表实现的队列，表示可重复使用的连接池对象
+    ngx_uint_t                reusable_connections_n;       // 可复用连接池对象的大小
     time_t                    connections_reuse_time;
 
-    ngx_array_t               listening;
-    ngx_array_t               paths;
+    ngx_array_t               listening;                    // 动态数组，里面儿保存的其实是 ngx_listening_t 对象，表示监听端口
+
+    ngx_array_t               paths;                        // nginx 所要操作的目录路径
 
     ngx_array_t               config_dump;
     ngx_rbtree_t              config_dump_rbtree;
@@ -67,10 +75,12 @@ struct ngx_cycle_s {
     ngx_list_t                open_files;
     ngx_list_t                shared_memory;
 
-    ngx_uint_t                connection_n;
-    ngx_uint_t                files_n;
+    ngx_uint_t                connection_n;                 // 初始化时 connection_n == free_connection_n，表示连接池总大小
+    ngx_uint_t                files_n;                      // 单个进程能够打开的最大文件数量
 
-    ngx_connection_t         *connections;
+    ngx_connection_t         *connections;                  // 连接池首地址，与 free_connections 搭配使用
+
+    // TODO: 这两个事件数组还没整明白
     ngx_event_t              *read_events;
     ngx_event_t              *write_events;
 
