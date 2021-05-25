@@ -80,7 +80,7 @@ struct ngx_cycle_s {
 
     ngx_connection_t         *connections;                  // 连接池首地址，与 free_connections 搭配使用
 
-    // TODO: 这两个事件数组还没整明白
+    // 读/写事件数组，其大小等于 connection_n，在 nginx 启动时和 connections 连接池一起初始化
     ngx_event_t              *read_events;
     ngx_event_t              *write_events;
 

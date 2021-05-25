@@ -132,28 +132,34 @@ typedef enum {
 
 
 struct ngx_connection_s {
+
+    /*
+     * 在 nginx 初始化时，data 指针充当 TCP 连接池中节点的指针，也就是说，data 将指向下一个 ngx_connection_t 对象
+     * 当连接被使用时，那么 data 指针可以用于保存业务所需要的数据，例如在 HTTP 框架中就保存了 ngx_http_request_t 对象
+     * 连接归化给连接池时，data 指针再次变成 next 指针，指向下一个空闲连接
+     */
     void               *data;
-    ngx_event_t        *read;
-    ngx_event_t        *write;
+    ngx_event_t        *read;       // 连接对应的读事件，从 read_events 数组中获取
+    ngx_event_t        *write;      // 连接对应的写事件，从 write_events 数组中获取
 
-    ngx_socket_t        fd;
+    ngx_socket_t        fd;         // 当前连接的 TCP socket 句柄
 
-    ngx_recv_pt         recv;
-    ngx_send_pt         send;
+    ngx_recv_pt         recv;       // 直接接收 socket 数据时调用的方法
+    ngx_send_pt         send;       // 直接写入 socket 数据时调用的方法
     ngx_recv_chain_pt   recv_chain;
     ngx_send_chain_pt   send_chain;
 
-    ngx_listening_t    *listening;
+    ngx_listening_t    *listening;  // socket 监听对象
 
-    off_t               sent;
+    off_t               sent;       // 发送偏移量，表示已经向 socket 写入了多少数据
 
-    ngx_log_t          *log;
+    ngx_log_t          *log;        // 日志对象
 
-    ngx_pool_t         *pool;
+    ngx_pool_t         *pool;       // 内存池对象，每一个连接在建立时都会创建一个 ngx_pool_t 对象
 
     int                 type;
 
-    struct sockaddr    *sockaddr;
+    struct sockaddr    *sockaddr;   // 对端的 IP 地址信息
     socklen_t           socklen;
     ngx_str_t           addr_text;
 
@@ -168,7 +174,7 @@ struct ngx_connection_s {
     struct sockaddr    *local_sockaddr;
     socklen_t           local_socklen;
 
-    ngx_buf_t          *buffer;
+    ngx_buf_t          *buffer;     // 接收缓冲区
 
     ngx_queue_t         queue;
 
