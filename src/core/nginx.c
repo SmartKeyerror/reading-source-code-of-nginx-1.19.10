@@ -259,7 +259,7 @@ main(int argc, char *const *argv)
      * ngx_process_options()
      */
 
-    // 初始化核心结构 ngx_cycle_t
+    // 分配 ngx_cycle_t 内存
     ngx_memzero(&init_cycle, sizeof(ngx_cycle_t));
     init_cycle.log = log;
     ngx_cycle = &init_cycle;
@@ -300,6 +300,7 @@ main(int argc, char *const *argv)
     ngx_slab_sizes_init();
 
     // 创建监听套接字，核心函数
+    // TODO: 什么是继承套接字?
     if (ngx_add_inherited_sockets(&init_cycle) != NGX_OK) {
         return 1;
     }
@@ -309,7 +310,8 @@ main(int argc, char *const *argv)
     }
 
     // 初始化 nginx 运行时的核心结构体，ngx_cycle_t，这玩意儿非常非常重要，可以说是 nginx 的核心组件
-    // 这个函数相当重要，里面儿也做了很多事情
+
+    // 内部调用了 ngx_open_listening_sockets()，设置的监听端口从此函数开始监听
     cycle = ngx_init_cycle(&init_cycle);
     if (cycle == NULL) {
         if (ngx_test_config) {

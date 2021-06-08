@@ -224,14 +224,23 @@ struct ngx_connection_s {
     }
 
 
+// 将 sockaddr 和 socklen 保存至 ngx_cycle_t 中的 listening 动态数组中
 ngx_listening_t *ngx_create_listening(ngx_conf_t *cf, struct sockaddr *sockaddr,
     socklen_t socklen);
+
+// 将新的 ngx_listening_t 对象 ls 逐个地赋值给 worker_processes 中的每一个 ngx_cycle_t 的 listening 数组对象
 ngx_int_t ngx_clone_listening(ngx_cycle_t *cycle, ngx_listening_t *ls);
+
 ngx_int_t ngx_set_inherited_sockets(ngx_cycle_t *cycle);
+
+
+// 对监听套接字进行 socket 选项设置，例如 SO_REUSEADDR、SO_REUSEPORT 等等，然后进行 bind() 以及 listen()，端口从这个函数开始进行正式地监听
 ngx_int_t ngx_open_listening_sockets(ngx_cycle_t *cycle);
+
 void ngx_configure_listening_sockets(ngx_cycle_t *cycle);
+
 void ngx_close_listening_sockets(ngx_cycle_t *cycle);
-void ngx_close_connection(ngx_connection_t *c);
+
 void ngx_close_idle_connections(ngx_cycle_t *cycle);
 ngx_int_t ngx_connection_local_sockaddr(ngx_connection_t *c, ngx_str_t *s,
     ngx_uint_t port);
@@ -239,6 +248,9 @@ ngx_int_t ngx_tcp_nodelay(ngx_connection_t *c);
 ngx_int_t ngx_connection_error(ngx_connection_t *c, ngx_err_t err, char *text);
 
 ngx_connection_t *ngx_get_connection(ngx_socket_t s, ngx_log_t *log);
+
+// 在 ngx_close_connection() 中调用了 ngx_free_connection() 函数，一个是关闭连接，一个是将连接从连接池中移入至空闲链表中
+void ngx_close_connection(ngx_connection_t *c);
 void ngx_free_connection(ngx_connection_t *c);
 
 void ngx_reusable_connection(ngx_connection_t *c, ngx_uint_t reusable);

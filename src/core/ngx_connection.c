@@ -16,6 +16,8 @@ ngx_os_io_t  ngx_io;
 static void ngx_drain_connections(ngx_cycle_t *cycle);
 
 
+// 将 sockaddr 和 socklen 保存至 ngx_cycle_t 中的 listening 动态数组中
+// 和 ngx_connection_t 本身没多大关系
 ngx_listening_t *
 ngx_create_listening(ngx_conf_t *cf, struct sockaddr *sockaddr,
     socklen_t socklen)
@@ -437,6 +439,8 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
         /* for each listening socket */
 
         ls = cycle->listening.elts;
+
+        // 遍历所有的监听端口，设置 socket 的相关选项，并进行 bind 以及 listen
         for (i = 0; i < cycle->listening.nelts; i++) {
 
             if (ls[i].ignore) {
@@ -504,6 +508,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
                 return NGX_ERROR;
             }
 
+            // 设置 SO_REUSEADDR，已复用 TIME_WAIT 状态的连接
             if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
                            (const void *) &reuseaddr, sizeof(int))
                 == -1)
@@ -549,6 +554,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
 
 #else
 
+                // 这里其实也设置了 SO_REUSEPORT
                 if (setsockopt(s, SOL_SOCKET, SO_REUSEPORT,
                                (const void *) &reuseport, sizeof(int))
                     == -1)
@@ -607,6 +613,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
             ngx_log_debug2(NGX_LOG_DEBUG_CORE, log, 0,
                            "bind() %V #%d ", &ls[i].addr_text, s);
 
+            // bind 端口
             if (bind(s, ls[i].sockaddr, ls[i].socklen) == -1) {
                 err = ngx_socket_errno;
 
@@ -660,6 +667,7 @@ ngx_open_listening_sockets(ngx_cycle_t *cycle)
                 continue;
             }
 
+            // 开始监听
             if (listen(s, ls[i].backlog) == -1) {
                 err = ngx_socket_errno;
 
