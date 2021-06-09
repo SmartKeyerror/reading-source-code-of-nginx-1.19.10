@@ -299,8 +299,10 @@ main(int argc, char *const *argv)
     // slab 初始化
     ngx_slab_sizes_init();
 
-    // 创建监听套接字，核心函数
-    // TODO: 什么是继承套接字?
+    // nginx 平滑升级时所用，也就是升级 nginx 可执行二进制文件版本
+    // nginx 在平滑升级时，它会不重启 master 进程而启动新版本的 nginx 程序。旧的 master 进程通过 execve() 系统
+    // 调用来启动新版本的 master 进程，此时旧 master 需要通过一种方式告诉新 master 进程这是在进行平滑升级，并且传递必要的信息
+    // 那么通过什么方式进行信息传递呢? 环境变量
     if (ngx_add_inherited_sockets(&init_cycle) != NGX_OK) {
         return 1;
     }
@@ -496,8 +498,10 @@ ngx_add_inherited_sockets(ngx_cycle_t *cycle)
     ngx_int_t         s;
     ngx_listening_t  *ls;
 
+    // 获取新、旧 master 进程通信的关键信息，环境变量
     inherited = (u_char *) getenv(NGINX_VAR);
 
+    // 如果该环境变量为空，那么说明并不是平滑升级
     if (inherited == NULL) {
         return NGX_OK;
     }
