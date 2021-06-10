@@ -142,6 +142,7 @@ struct ngx_event_s {
     ngx_rbtree_node_t   timer;
 
     /* the posted queue */
+    // post 事件双向链表指针
     ngx_queue_t      queue;
 
 #if 0

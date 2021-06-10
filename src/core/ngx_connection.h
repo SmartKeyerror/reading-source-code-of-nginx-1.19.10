@@ -144,8 +144,17 @@ struct ngx_connection_s {
 
     ngx_socket_t        fd;         // 当前连接的 TCP socket 句柄
 
-    ngx_recv_pt         recv;       // 直接接收 socket 数据时调用的方法
-    ngx_send_pt         send;       // 直接写入 socket 数据时调用的方法
+    /*
+     * 直接接收 socket 数据时调用的方法
+     * 函数原型: ssize_t (*ngx_recv_pt)(ngx_connection_t *c, u_char *buf, size_t size);
+     */
+    ngx_recv_pt         recv;
+
+    /*
+     * 直接写入 socket 数据时调用的方法
+     * 函数原型: ssize_t (*ngx_send_pt)(ngx_connection_t *c, u_char *buf, size_t size);
+     */
+    ngx_send_pt         send;
     ngx_recv_chain_pt   recv_chain;
     ngx_send_chain_pt   send_chain;
 
