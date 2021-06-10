@@ -26,41 +26,66 @@ typedef struct {
 
 #endif
 
-
+/*
+ * nginx 事件表示，可以通俗的认为 ngx_event_t 对应着 epoll 的 epoll_event
+ * 最核心的部分其实是 ngx_event_handler_pt  handler，也就是回调函数，表示当有事件发生了，该如何进行处理
+ */
 struct ngx_event_s {
+
+    /*
+     *  与该事件相关的对象，通常会指向 ngx_connection_t 对象，表示一个 socket 连接。
+     *  在开启了异步文件 I/O 时，data 将会指向 ngx_event_aio_t 结构体
+     */
     void            *data;
 
+    // 可写标志位，值为 1 时表示可写。对于 TCP 连接来说，就是发送缓冲区未满
     unsigned         write:1;
 
+    // 是否有新的连接建立，值为 1 时表示有新的连接建立，对于 TCP 连接来说，其实就是 backlog 队列中存在已完成握手的连接
     unsigned         accept:1;
 
-    /* used to detect the stale events in kqueue and epoll */
+    /* used to detect the stale events in kqueue and epoll
+     * 在 kqueue 和 epoll 中使用，用于区分当前事件是否过期，提供给事件驱动模块，我们可以在 ngx_epoll_module 中看到其使用方法
+     */
     unsigned         instance:1;
 
     /*
      * the event was passed or would be passed to a kernel;
      * in aio mode - operation was posted.
+     * 表示当前事件是否活跃
      */
     unsigned         active:1;
 
     unsigned         disabled:1;
 
-    /* the ready event; in aio mode 0 means that no operation can be posted */
+    /* the ready event; in aio mode 0 means that no operation can be posted
+     * 事件是否就绪标志位，在 HTTP 框架中会检查事件的 ready 标志位是否为 1，以确定是否可以发送或接收响应
+     */
     unsigned         ready:1;
 
+    // epoll 无意义
     unsigned         oneshot:1;
 
-    /* aio operation is complete */
+    /* aio operation is complete
+     * 表示 AIO 是否完成
+     */
     unsigned         complete:1;
 
+    // 结束标志位，值为 1 时表示当前处理的流已经结束
     unsigned         eof:1;
+
+    // 错误标志位，为 1 时表示处理过程中出现错误
     unsigned         error:1;
 
+    // 超时标志位
     unsigned         timedout:1;
+
+    // 表示当前事件是否存在于超时定时器中
     unsigned         timer_set:1;
 
     unsigned         delayed:1;
 
+    // 是否延迟建立 TCP 连接，当值为 1 时，TCP 连接并不在三次握手时建立，而是等到客户端发送数据时才建立
     unsigned         deferred_accept:1;
 
     /* the pending eof reported by kqueue, epoll or in aio chain operation */
@@ -100,6 +125,7 @@ struct ngx_event_s {
 
     int              available;
 
+    // 事件发生时的回调函数，由事件消费模块重新实现
     ngx_event_handler_pt  handler;
 
 
@@ -109,8 +135,10 @@ struct ngx_event_s {
 
     ngx_uint_t       index;
 
+    // 日志对象
     ngx_log_t       *log;
 
+    // 定时器节点
     ngx_rbtree_node_t   timer;
 
     /* the posted queue */
@@ -166,22 +194,37 @@ struct ngx_event_aio_s {
 
 #endif
 
-
+/*
+ * ngx_event_actions_t 表示一个 interface，其中最为重要的方法就是 add、del 以及 process_events，
+ * 这 3 个函数是 nginx 实现事件驱动的核心
+ */
 typedef struct {
+
+    /*
+     * 将感兴趣的事件（如 socket 可读/可写等）添加至 OS 提供的事件驱动机制中，以 epoll 为例，add 方法将会调用
+     * epoll_ctl(int epfd, int op, int fd, struct epoll_event *event) 将 event 保存至 epoll 的红黑树中，op 参数为 EPOLL_CTL_ADD。
+     * 后续我们可以通过下面的 process_events 来获取已添加的事件
+     */
     ngx_int_t  (*add)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
+
+    // 删除事件的方法，后续无法通过 process_events 获取该事件
     ngx_int_t  (*del)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
 
+    // enable 和 disable 这两个方法似乎并没有用到，可能是出于兼容性的考虑而设置的这两个方法，因为 enable/disable 对应着 add/del
     ngx_int_t  (*enable)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
     ngx_int_t  (*disable)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
 
+    // 下面两个方法分别表示向事件驱动中添加和删除一个连接
     ngx_int_t  (*add_conn)(ngx_connection_t *c);
     ngx_int_t  (*del_conn)(ngx_connection_t *c, ngx_uint_t flags);
 
     ngx_int_t  (*notify)(ngx_event_handler_pt handler);
 
+    // 处理和分发事件的核心，仅会在 ngx_process_events_and_timers 中被调用
     ngx_int_t  (*process_events)(ngx_cycle_t *cycle, ngx_msec_t timer,
                                  ngx_uint_t flags);
 
+    // 下面两个方法分别表示在初始化事件驱动以及退出事件驱动时调用的方法，相当于一个"切口"函数
     ngx_int_t  (*init)(ngx_cycle_t *cycle, ngx_msec_t timer);
     void       (*done)(ngx_cycle_t *cycle);
 } ngx_event_actions_t;
@@ -447,12 +490,37 @@ typedef struct {
 } ngx_event_conf_t;
 
 
+/*
+ * nginx 依赖于事件驱动机制，或者说 nginx 就是一个事件驱动 Web Server。
+ * 因此，nginx 非常依赖于操作系统所提供的事件驱动机制。比如 Linux 2.6 版本之前的 poll，2.6 版本之后的 epoll；
+ * 而在 FreeBSD 上则可以使用 kqueue，Solaris 10上可以使用 eventport 等。
+ *
+ * 在 src/event/modules 中我们就可以看到 ngx_poll_module.c、ngx_select_module.c、ngx_epoll_module.c、ngx_kqueue_module.c
+ * 这些具体的实现文件，也就是说，根据操作系统的不同以及配置文件的不同，nginx 将选择不同的内核事件驱动机制。
+ *
+ * 下面是一个比较通用的 nginx events 块的配置信息，当我们配置了 use epoll 时，nginx 将会选取 epoll 作为事件驱动机制的底层实现，
+ * 这个过程是由 ngx_event_core_module 在初始化时完成的。
+ *
+ * events {
+ *      accept_mutex on;             # 设置网路连接序列化，防止惊群现象发生，默认为on
+ *      multi_accept on;             # 设置一个进程是否同时接受多个网络连接，默认为off
+ *      use epoll;                   # 事件驱动模型，select|poll|kqueue|epoll|eventport
+ *      worker_connections  1024;    # 最大连接数，默认为512
+ * }
+ *
+ * 如果我们没有明确的表示到底使用哪种事件驱动模型，那么 nginx 将会根据平台和版本进行选择。
+ *
+ * ngx_event_module_t 其实就是对这些事件驱动机制的一个封装，或者是提供了一个 Interface
+ */
 typedef struct {
-    ngx_str_t              *name;
+    ngx_str_t              *name;       // 事件模块的名称
 
+    // 两个回调函数指针
     void                 *(*create_conf)(ngx_cycle_t *cycle);
     char                 *(*init_conf)(ngx_cycle_t *cycle, void *conf);
 
+    // actions 其实就是一个 interface，ngx_event_actions_t 中定义了 10 个与事件驱动机制相关的方法，
+    // ngx_xxx_module.c 需要实现这些方法，从而对上层提供统一的调用接口。
     ngx_event_actions_t     actions;
 } ngx_event_module_t;
 
