@@ -319,6 +319,9 @@ failed:
 #endif
 
 
+/*
+ * 初始化 epoll 对象
+ */
 static ngx_int_t
 ngx_epoll_init(ngx_cycle_t *cycle, ngx_msec_t timer)
 {
@@ -327,6 +330,7 @@ ngx_epoll_init(ngx_cycle_t *cycle, ngx_msec_t timer)
     epcf = ngx_event_get_conf(cycle->conf_ctx, ngx_epoll_module);
 
     if (ep == -1) {
+        // int epoll_create(int size)，其中的 size 其实并没有使用，所以随便传一个正整数即可
         ep = epoll_create(cycle->connection_n / 2);
 
         if (ep == -1) {
@@ -336,6 +340,7 @@ ngx_epoll_init(ngx_cycle_t *cycle, ngx_msec_t timer)
         }
 
 #if (NGX_HAVE_EVENTFD)
+        // 初始化 eventfd 对象，并将其添加至 epoll 中，并设置相应的回调函数
         if (ngx_epoll_notify_init(cycle->log) != NGX_OK) {
             ngx_epoll_module_ctx.actions.notify = NULL;
         }
@@ -388,6 +393,28 @@ ngx_epoll_notify_init(ngx_log_t *log)
     struct epoll_event  ee;
 
 #if (NGX_HAVE_SYS_EVENTFD_H)
+
+    /*
+     * int eventfd(unsigned int initval, int flags);
+     *
+     *  eventfd() 是一个系统调用，本质上就是打开了一个文件描述符，在内核中实际上维护了一个 64 位无符整型计数器，
+     *  这个计数器由参数 initval 说明的值来初始化，其实就是 init value。
+     *
+     *  我们可以使用 eventfd_write() 以及 eventfd_read() 这两个系统调用对这个计数器进行写数据和读数据，
+     *  其实就是更新计数器的值和获取计数器的值。
+     *
+     *  以下内容摘录于 《Linux-Unix 系统编程手册》 的 43.3 同步工具 章节:
+     *
+     *  自内核 2.6.22 起，Linux 通过 eventfd()系统调用额外提供了一种非标准的同步机制。
+     *  这个系统调用创建了一个 eventfd 对象，该对象拥有一个相关的由内核维护的 8 字节无符号整数，
+     *  它返回一个指向该对象的文件描述符。向这个文件描述符中写入一个整数将会把该整数加到对象值上。
+     *  当对象值为 0 时对该文件描述符的 read() 操作将会被阻塞。如果对象的值非零，那么 read() 会返回该值并将对象值重置为 0。
+     *  此外，可以使用 poll()、select()以及 epoll 来测试对象值是否为非零，如果是非零的话就表示文件描述符可读。
+     *  使用 eventfd 对象进行同步的应用程序必须要首先使用 eventfd() 创建该对象，然后调用 fork() 创建继承指向该对象的文件描述符的相关进程。
+     *  更多细节信息可参考 eventfd(2)手册。
+     *
+     *  也就是说，eventfd 可以认为是父、子进程间的一个同步工具
+     */
     notify_fd = eventfd(0, 0);
 #else
     notify_fd = syscall(SYS_eventfd, 0);
@@ -409,9 +436,12 @@ ngx_epoll_notify_init(ngx_log_t *log)
     notify_conn.read = &notify_event;
     notify_conn.log = log;
 
+    // 对可读事件进行注册，并且使用 Edge Trigger 模式，即边缘触发模式
     ee.events = EPOLLIN|EPOLLET;
+    // 设置 event_poll 数据指针
     ee.data.ptr = &notify_conn;
 
+    // 将事件与文件描述符添加至 epoll 红黑树中
     if (epoll_ctl(ep, EPOLL_CTL_ADD, notify_fd, &ee) == -1) {
         ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
                       "epoll_ctl(EPOLL_CTL_ADD, eventfd) failed");
