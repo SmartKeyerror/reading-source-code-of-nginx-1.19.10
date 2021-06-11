@@ -774,6 +774,7 @@ ngx_epoll_add_connection(ngx_connection_t *c)
 {
     struct epoll_event  ee;
 
+    // 嚯，这是在枚举标志位吗
     ee.events = EPOLLIN|EPOLLOUT|EPOLLET|EPOLLRDHUP;
     ee.data.ptr = (void *) ((uintptr_t) c | c->read->instance);
 
@@ -852,6 +853,10 @@ ngx_epoll_notify(ngx_event_handler_pt handler)
 #endif
 
 
+/*
+ * ngx_epoll_module 核心函数，内部调用 epoll_wait() 接收就绪事件，并进行分发，同时判断过期事件。
+ * 可向而知，ngx_epoll_process_events 或者说 process_events 方法一定是被放在 worker 的事件循环中的。
+ */
 static ngx_int_t
 ngx_epoll_process_events(ngx_cycle_t *cycle, ngx_msec_t timer, ngx_uint_t flags)
 {
@@ -869,6 +874,7 @@ ngx_epoll_process_events(ngx_cycle_t *cycle, ngx_msec_t timer, ngx_uint_t flags)
     ngx_log_debug1(NGX_LOG_DEBUG_EVENT, cycle->log, 0,
                    "epoll timer: %M", timer);
 
+    // 将就绪事件 copy 至 event_list 中，每次取的数量由配置文件决定
     events = epoll_wait(ep, event_list, (int) nevents, timer);
 
     err = (events == -1) ? ngx_errno : 0;
@@ -906,13 +912,22 @@ ngx_epoll_process_events(ngx_cycle_t *cycle, ngx_msec_t timer, ngx_uint_t flags)
     }
 
     for (i = 0; i < events; i++) {
+        // 获取被"加工"之后的 ngx_connection_t 指针对象
         c = event_list[i].data.ptr;
 
+        // 取出 instance 变量
         instance = (uintptr_t) c & 1;
+
+        // 取出正确的 ngx_connection_t 指针对象
         c = (ngx_connection_t *) ((uintptr_t) c & (uintptr_t) ~1);
 
         rev = c->read;
 
+        /*
+         * 事件过期判断:
+         * - 要么是 socket fd 已经被关闭，但是还没有被 OS 复用的情况；
+         * - 要么是 socket fd 关闭以后被 OS 所复用的情况，此时 instance 一定会发生改变。
+         */
         if (c->fd == -1 || rev->instance != instance) {
 
             /*
@@ -970,6 +985,7 @@ ngx_epoll_process_events(ngx_cycle_t *cycle, ngx_msec_t timer, ngx_uint_t flags)
                 ngx_post_event(rev, queue);
 
             } else {
+                // 处理读事件
                 rev->handler(rev);
             }
         }
@@ -999,6 +1015,7 @@ ngx_epoll_process_events(ngx_cycle_t *cycle, ngx_msec_t timer, ngx_uint_t flags)
                 ngx_post_event(wev, &ngx_posted_events);
 
             } else {
+                // 处理写事件
                 wev->handler(wev);
             }
         }
