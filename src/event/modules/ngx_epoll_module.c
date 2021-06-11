@@ -101,8 +101,11 @@ typedef struct {
 } ngx_epoll_conf_t;
 
 
+// 初始化 epoll 对象已经为 event_list 分配内存空间，并设置 nginx 事件驱动模式为 ET，即 Edge Trigger。
+// 函数内部会调用 epoll_create() 创建 epoll 对象，这个 epoll 对象是全局的
 static ngx_int_t ngx_epoll_init(ngx_cycle_t *cycle, ngx_msec_t timer);
 #if (NGX_HAVE_EVENTFD)
+// 初始化 eventfd，开始进程间的另一种通信或者说同步机制
 static ngx_int_t ngx_epoll_notify_init(ngx_log_t *log);
 static void ngx_epoll_notify_handler(ngx_event_t *ev);
 #endif
@@ -110,8 +113,11 @@ static void ngx_epoll_notify_handler(ngx_event_t *ev);
 static void ngx_epoll_test_rdhup(ngx_cycle_t *cycle);
 #endif
 static void ngx_epoll_done(ngx_cycle_t *cycle);
+
+// 核心函数，向 epoll 对象中添加事件。函数内部将调用 epoll_ctl() 并且 operation 参数为 EPOLL_CTL_ADD 或 EPOLL_CTL_MOD
 static ngx_int_t ngx_epoll_add_event(ngx_event_t *ev, ngx_int_t event,
     ngx_uint_t flags);
+// 核心函数，将事件从 epoll 对象中移除。函数内部将调用 epoll_ctl() 并且 operation 参数为 EPOLL_CTL_DEL 或 EPOLL_CTL_MOD
 static ngx_int_t ngx_epoll_del_event(ngx_event_t *ev, ngx_int_t event,
     ngx_uint_t flags);
 static ngx_int_t ngx_epoll_add_connection(ngx_connection_t *c);
@@ -120,6 +126,7 @@ static ngx_int_t ngx_epoll_del_connection(ngx_connection_t *c,
 #if (NGX_HAVE_EVENTFD)
 static ngx_int_t ngx_epoll_notify(ngx_event_handler_pt handler);
 #endif
+// 核心函数，获取已经就绪的事件。函数内部将调用 epoll_wait() 获取 epoll 对象中双向链表所保存的已经就绪的事件
 static ngx_int_t ngx_epoll_process_events(ngx_cycle_t *cycle, ngx_msec_t timer,
     ngx_uint_t flags);
 
@@ -176,26 +183,31 @@ static ngx_command_t  ngx_epoll_commands[] = {
 };
 
 
+/*
+ * 前面我们已经提到了 ngx_event_module_t 是一个 Interface，核心关键在就在于 actions 中所定义的 10 个函数/方法，
+ * 而最为核心的方法其实就是 add，del 以及 process_event 这 3 个方法，ngx_epoll_module_ctx 其实就是对 ngx_event_module_t 的实现
+ */
 static ngx_event_module_t  ngx_epoll_module_ctx = {
-    &epoll_name,
+
+    &epoll_name,                         /* 模块名称，就叫做 "epoll" */
     ngx_epoll_create_conf,               /* create configuration */
     ngx_epoll_init_conf,                 /* init configuration */
 
     {
-        ngx_epoll_add_event,             /* add an event */
-        ngx_epoll_del_event,             /* delete an event */
-        ngx_epoll_add_event,             /* enable an event */
-        ngx_epoll_del_event,             /* disable an event */
-        ngx_epoll_add_connection,        /* add an connection */
-        ngx_epoll_del_connection,        /* delete an connection */
+        ngx_epoll_add_event,             /* add an event，对应于 ngx_event_actions_t 的 add 方法  */
+        ngx_epoll_del_event,             /* delete an event，对应于 ngx_event_actions_t 的 del 方法 */
+        ngx_epoll_add_event,             /* enable an event，对应于 ngx_event_actions_t 的 enable 方法 */
+        ngx_epoll_del_event,             /* disable an event，对应于 ngx_event_actions_t 的 disable 方法 */
+        ngx_epoll_add_connection,        /* add an connection，对应于 ngx_event_actions_t 的 add_conn 方法 */
+        ngx_epoll_del_connection,        /* delete an connection，对应于 ngx_event_actions_t 的 del_conn 方法 */
 #if (NGX_HAVE_EVENTFD)
-        ngx_epoll_notify,                /* trigger a notify */
+        ngx_epoll_notify,                /* trigger a notify，对应于 ngx_event_actions_t 的 notify 方法 */
 #else
         NULL,                            /* trigger a notify */
 #endif
-        ngx_epoll_process_events,        /* process the events */
-        ngx_epoll_init,                  /* init the events */
-        ngx_epoll_done,                  /* done the events */
+        ngx_epoll_process_events,        /* process the events，对应于 ngx_event_actions_t 的 process_events 方法 */
+        ngx_epoll_init,                  /* init the events，对应于 ngx_event_actions_t 的 init 方法 */
+        ngx_epoll_done,                  /* done the events，对应于 ngx_event_actions_t 的 done 方法 */
     }
 };
 
@@ -360,6 +372,7 @@ ngx_epoll_init(ngx_cycle_t *cycle, ngx_msec_t timer)
             ngx_free(event_list);
         }
 
+        // 分配 event_list 的空间，用于进行 epoll_wait() 调用时接收已经就绪的 epoll_event
         event_list = ngx_alloc(sizeof(struct epoll_event) * epcf->events,
                                cycle->log);
         if (event_list == NULL) {
@@ -614,10 +627,12 @@ ngx_epoll_add_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
     ngx_connection_t    *c;
     struct epoll_event   ee;
 
+    // ngx_event_t 中的 data 指针指向的是 ngx_connection_t 对象（通常）
     c = ev->data;
 
     events = (uint32_t) event;
 
+    // 根据 event 的值来确定当前事件是读事件还是写事件
     if (event == NGX_READ_EVENT) {
         e = c->write;
         prev = EPOLLOUT;
@@ -633,6 +648,7 @@ ngx_epoll_add_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
 #endif
     }
 
+    // 根据 ngx_event_t 是否活跃来决定是修改事件还是添加事件
     if (e->active) {
         op = EPOLL_CTL_MOD;
         events |= prev;
@@ -647,6 +663,32 @@ ngx_epoll_add_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
     }
 #endif
 
+    /*
+     * 下面这两行代码就很有意思了，nginx 并没有直接把 ngx_connection_t 指针赋值给 epoll_event.data.ptr 字段，
+     * 而是和 ngx_event_t 做了一个按位 | 的操作，目的何在? 意义何在?
+     *
+     * 首先我们来看，c 是一个 ngx_connection_t 的一个指针对象，也就是一个指针，指针转换成 unsigned long 时，其结果一定为偶数。
+     * 那么与 ev->instance 这个标志位进行按位或操作时，要么结果为奇数，要么结果为偶数，并且我们也能够从结果中恢复出 c 指针的地址，
+     * 只需要 c = (ngx_connection_t *) ((uintptr_t) c & (uintptr_t) ~1); 这样进行即可，同时我们也能够得到 instance 的值
+     *
+     * 事件的 instance 标志位的含义其实就是判断当前事件是否已经过期。比如说，某一个 socket fd 既注册了可读事件，同时也注册了可写事件。
+     * 当可读事件触发时，epoll_wait() 将返回对应的 epoll_event 同时我们可以获取到保存在 epoll_event.data.ptr 的 ngx_connection_t
+     * 指针对象，进一步地获取到其中的 socket fd，并进行相应的处理。
+     *
+     * 现在，由于业务需要，我们需要关闭当前 socket，关闭完以后从 epoll 中又取到了该 socket 的可写事件，那么此时再对其进行写入的话就会出现错误。
+     * 如果我们只是简单的将 ngx_connection_t 中的 fd 设置为 -1 的话，同样会出现问题。因为 socket fd 可能会被 OS 所复用，那么当一个新的 socket
+     * 连接使用了原来的 socket fd ，并且在 epoll 中收到了与该 fd 相关的可写事件时，这时候的可写事件其实是错误的，是上一个 socket 连接所留下来的。
+     *
+     * 因此，为了解决上面出现的问题，nginx 使用了 instance 这个标志位。实际上，当我们从 connections 连接池中获取 ngx_connection_t 对象时，
+     * nginx 会执行 rev->instance = !instance; wev->instance = !instance; 也就是将可读事件和可写事件中的 instance 和 ngx_connection_t
+     * 对象的 instance 一定是不相同的。
+     *
+     * 这样，当这个 ngx_connection_t 连接重复使用时，它的 instance 标志位一定是不同的。
+     * 因此，在 ngx_epoll_process_events 方法中一旦判断 instance 发生了变化，就认为这是过期事件而不予处理。
+     *
+     * 只使用一个简单标志位就完成了过期事件的判断，这是真的强。如果换做我来做这件事情的话，我可能会使用一个随机值来实现，比如一个 6 位的包含
+     * 大小写英文字母以及 10 位数字的随机字符串，重复的概率为 1/56800235584，但是占用了额外了内存空间以及 CPU。
+     */
     ee.events = events | (uint32_t) flags;
     ee.data.ptr = (void *) ((uintptr_t) c | ev->instance);
 
