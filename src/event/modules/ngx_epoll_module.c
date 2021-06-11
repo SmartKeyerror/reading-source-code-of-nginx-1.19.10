@@ -680,11 +680,15 @@ ngx_epoll_add_event(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags)
      * 连接使用了原来的 socket fd ，并且在 epoll 中收到了与该 fd 相关的可写事件时，这时候的可写事件其实是错误的，是上一个 socket 连接所留下来的。
      *
      * 因此，为了解决上面出现的问题，nginx 使用了 instance 这个标志位。实际上，当我们从 connections 连接池中获取 ngx_connection_t 对象时，
-     * nginx 会执行 rev->instance = !instance; wev->instance = !instance; 也就是将可读事件和可写事件中的 instance 和 ngx_connection_t
-     * 对象的 instance 一定是不相同的。
+     * nginx 会执行 rev->instance = !instance; wev->instance = !instance; 也就是进行取反操作，那么两次获取同一个 ngx_connection_t
+     * 对象时其 rev 和 wev 这两个 ngx_event_t 的 instance 是不一样的
      *
      * 这样，当这个 ngx_connection_t 连接重复使用时，它的 instance 标志位一定是不同的。
      * 因此，在 ngx_epoll_process_events 方法中一旦判断 instance 发生了变化，就认为这是过期事件而不予处理。
+     *
+     * 这里其实有一个小问题，就是同一个 socket fd 被 close，然后 OS 复用，然后又被 close，然后又被 OS 复用，也就是 ngx_connection_t
+     * 中的 rev->instance 和 wev->instance 进行了两次取反，那么这时候也就没办法判断是不是过期事件了。不过这种事情发生的概率应该是极低极低，
+     * 仅存在于理论过程中。
      *
      * 只使用一个简单标志位就完成了过期事件的判断，这是真的强。如果换做我来做这件事情的话，我可能会使用一个随机值来实现，比如一个 6 位的包含
      * 大小写英文字母以及 10 位数字的随机字符串，重复的概率为 1/56800235584，但是占用了额外了内存空间以及 CPU。
