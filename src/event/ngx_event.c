@@ -117,8 +117,19 @@ ngx_module_t  ngx_events_module = {
 static ngx_str_t  event_core_name = ngx_string("event_core");
 
 
+// 事件模块需要做的事情，以下内容按照顺序进行创建，简单的来说就是从 events 配置项中提取出响应的配置，然后进行相关内容的初始化
+/*
+ * 例如:
+ * events {
+ *      accept_mutex on;             # 设置网路连接序列化，防止惊群现象发生，默认为on
+ *      multi_accept on;             # 设置一个进程是否同时接受多个网络连接，默认为off
+ *      use epoll;                   # 事件驱动模型，select|poll|kqueue|epoll|eventport
+ *      worker_connections  1024;    # 最大连接数，默认为512
+ * }
+ */
 static ngx_command_t  ngx_event_core_commands[] = {
 
+    // 创建 worker 连接池，也就是 worker_connections 中所定义的配置项，根据服务器并发数量决定
     { ngx_string("worker_connections"),
       NGX_EVENT_CONF|NGX_CONF_TAKE1,
       ngx_event_connections,
@@ -126,6 +137,7 @@ static ngx_command_t  ngx_event_core_commands[] = {
       0,
       NULL },
 
+    // 确定哪个事件驱动模块作为事件驱动机制，Linux 上一般为 epoll
     { ngx_string("use"),
       NGX_EVENT_CONF|NGX_CONF_TAKE1,
       ngx_event_use,
@@ -133,6 +145,8 @@ static ngx_command_t  ngx_event_core_commands[] = {
       0,
       NULL },
 
+    // 表示是否配置一次性尽可能多的建立 TCP 连接。对于 epoll 来说，
+    // 意味着在接收到一个新的连接事件时，调用 accept() 以尽可能多地接收连接
     { ngx_string("multi_accept"),
       NGX_EVENT_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
@@ -140,6 +154,24 @@ static ngx_command_t  ngx_event_core_commands[] = {
       offsetof(ngx_event_conf_t, multi_accept),
       NULL },
 
+
+    /*
+     * nginx 惊群现象的解决方式。由于 nginx 是一个 master-worker 模型，master 进行作为管理者不进行 accept()，所以会有多个 worker 进行
+     * 在同一个端口上进行 accept()，那么假如有新的连接建立时，很可能会出现所有的 worker 都去争抢这个新的连接。
+     *
+     * Linux 本身的 accept() 惊群效应:
+     * 假如父进程创建了一个 listening socket，并且 bind 了相应的端口，同时 fork 出了多个子进程的话，子进程将会继承父进程的 listening socket，
+     * 也就是说，多个子进程可以在同一个监听 socket 上调用 accept() 方法接收并处理新的连接:
+     * - Linux 2.6 版本之前，监听同一个 socket 的进程会挂在同一个等待队列上，当请求到来时，会唤醒所有等待的进程。
+     * - Linux 2.6 版本之后，通过引入一个标记位 WQ_FLAG_EXCLUSIVE，解决掉了 accept 惊群效应。
+     * 所以，Linux 上父子进程的惊群效应其实已经被解决了，但是 epoll 的惊群效应则更为复杂。
+     *
+     * epoll 的惊群问题并不是出现在 accept() 上，而是出现在其它工作场景中，比如定时器事件、信号事件
+     *
+     * 因此，需要使用进程锁来解决 epoll 产生的惊群问题
+     *
+     * 是否使用 accept_mutex 进程锁来解决惊群问题，默认开启
+     */
     { ngx_string("accept_mutex"),
       NGX_EVENT_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
@@ -147,6 +179,7 @@ static ngx_command_t  ngx_event_core_commands[] = {
       offsetof(ngx_event_conf_t, accept_mutex),
       NULL },
 
+    // 当启用了 accept_mutex 以后，延迟 accept_mutex_delay 毫秒后再试图处理新的连接
     { ngx_string("accept_mutex_delay"),
       NGX_EVENT_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_msec_slot,
