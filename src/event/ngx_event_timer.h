@@ -18,6 +18,10 @@
 
 #define NGX_TIMER_LAZY_DELAY  300
 
+/*
+ * nginx 的定时器使用红黑树实现，那么红黑树最左侧的节点就是最快过期的那一个事件，所以寻找过期事件时只需要一直往左走即可。
+ */
+
 
 ngx_int_t ngx_event_timer_init(ngx_log_t *log);
 ngx_msec_t ngx_event_find_timer(void);
@@ -28,6 +32,7 @@ ngx_int_t ngx_event_no_timers_left(void);
 extern ngx_rbtree_t  ngx_event_timer_rbtree;
 
 
+// 从红黑树中删除定时器事件
 static ngx_inline void
 ngx_event_del_timer(ngx_event_t *ev)
 {
@@ -46,7 +51,7 @@ ngx_event_del_timer(ngx_event_t *ev)
     ev->timer_set = 0;
 }
 
-
+// 将定时器事件添加至红黑树中
 static ngx_inline void
 ngx_event_add_timer(ngx_event_t *ev, ngx_msec_t timer)
 {

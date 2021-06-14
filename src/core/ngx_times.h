@@ -4,6 +4,7 @@
  * Copyright (C) Nginx, Inc.
  */
 
+// 与定时器事件相关内容
 
 #ifndef _NGX_TIMES_H_INCLUDED_
 #define _NGX_TIMES_H_INCLUDED_
@@ -13,9 +14,17 @@
 #include <ngx_core.h>
 
 
+/*
+ *  nginx 在获取时间时处于性能的考虑，并不会每次都调用 gettimeofday() 方法，而是将时间缓存在内存中。
+ *
+ */
+
 typedef struct {
+    // 1970 年 1 月 1 日凌晨到当前的时间秒数
     time_t      sec;
+    // sec 只能精确到秒，所以使用 msec 来表示毫秒数
     ngx_uint_t  msec;
+    // 时区
     ngx_int_t   gmtoff;
 } ngx_time_t;
 

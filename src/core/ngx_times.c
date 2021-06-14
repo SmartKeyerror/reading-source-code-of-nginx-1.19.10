@@ -62,6 +62,9 @@ static char  *week[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 static char  *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
+/*
+ * ngx_time_init 本质上就是调用 gettimeofday() 方法，然后将时间缓存起来
+ */
 void
 ngx_time_init(void)
 {

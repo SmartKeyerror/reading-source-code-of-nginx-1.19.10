@@ -19,6 +19,7 @@ static ngx_rbtree_node_t  ngx_event_timer_sentinel;
  * a minimum timer value only
  */
 
+// 初始化红黑树
 ngx_int_t
 ngx_event_timer_init(ngx_log_t *log)
 {
@@ -42,6 +43,7 @@ ngx_event_find_timer(void)
     root = ngx_event_timer_rbtree.root;
     sentinel = ngx_event_timer_rbtree.sentinel;
 
+    // 寻找红黑树的最小节点，也就是最左边儿的那个节点
     node = ngx_rbtree_min(root, sentinel);
 
     timer = (ngx_msec_int_t) (node->key - ngx_current_msec);
@@ -50,6 +52,10 @@ ngx_event_find_timer(void)
 }
 
 
+/*
+ * 死循环，寻找红黑树中最小节点，判断是否过期，若过期则删除之，并调用过期事件的回调函数; 若当前最小的 key 没有过期，函数直接返回
+ * 该函数只会在 ngx_process_events_and_timers 中进行调用，同时 ngx_process_events_and_timers 函数本身也是循环调用的。
+ */
 void
 ngx_event_expire_timers(void)
 {
