@@ -14,21 +14,38 @@
 
 /* epoll declarations */
 
+/* 这里有必要对 epoll 中 events 字段上的位掩码值做出解释, 因为这些位掩码将直接决定了我们该如何处理已经就绪的事件
+ * 常用的几个位掩码分别为: EPOLLIN、EPOLLOUT、EPOLLHUP、EPOLLRDHUP、EPOLLERR 以及 EPOLLET 这 6 个位掩码
+ */
+
+// EPOLLIN 表示当前 socket fd 可读，如果对端关闭了 socket 连接，也是 EPOLLIN 事件，因为此时可以读取 FIN 数据包
 #define EPOLLIN        0x001
+
+// EPOLLPRI 表示可以读取高优先级数据，基本上很少使用
 #define EPOLLPRI       0x002
+
+// socket 可写，也就是发送缓冲区未满，这个事件应该是经常触发的一个事件
 #define EPOLLOUT       0x004
+
+// EPOLLERR 表示有错误发生
 #define EPOLLERR       0x008
+
+// EPOLLHUP 表示出现挂断，测试结果得到的是当 server 回送 RST 数据包时，会触发 EPOLLHUP 事件，把它当成错误处理即可
 #define EPOLLHUP       0x010
+
 #define EPOLLRDNORM    0x040
 #define EPOLLRDBAND    0x080
 #define EPOLLWRNORM    0x100
 #define EPOLLWRBAND    0x200
 #define EPOLLMSG       0x400
 
+// 对端套接字关闭，是判断套接字关闭的主要方法
 #define EPOLLRDHUP     0x2000
 
 #define EPOLLEXCLUSIVE 0x10000000
 #define EPOLLONESHOT   0x40000000
+
+// Edge Trigger，边缘触发模式，最为高效，同时对编码要求很高
 #define EPOLLET        0x80000000
 
 #define EPOLL_CTL_ADD  1
@@ -888,6 +905,11 @@ ngx_epoll_process_events(ngx_cycle_t *cycle, ngx_msec_t timer, ngx_uint_t flags)
     }
 
     if (err) {
+
+        /*
+         * 如果 epoll_wait() 在阻塞期间被信号打断的话，之后又通过 SIGCONT 信号恢复执行，此时就会出现 EINTR 错误，
+         * 此时我们需要重新执行 epoll_wait() 系统调用
+         */
         if (err == NGX_EINTR) {
 
             if (ngx_event_timer_alarm) {
@@ -950,6 +972,7 @@ ngx_epoll_process_events(ngx_cycle_t *cycle, ngx_msec_t timer, ngx_uint_t flags)
                        "epoll: fd:%d ev:%04XD d:%p",
                        c->fd, revents, event_list[i].data.ptr);
 
+        // 这时候我们就当做有错误发生
         if (revents & (EPOLLERR|EPOLLHUP)) {
             ngx_log_debug2(NGX_LOG_DEBUG_EVENT, cycle->log, 0,
                            "epoll_wait() error on fd:%d ev:%04XD",
@@ -974,6 +997,7 @@ ngx_epoll_process_events(ngx_cycle_t *cycle, ngx_msec_t timer, ngx_uint_t flags)
         if ((revents & EPOLLIN) && rev->active) {
 
 #if (NGX_HAVE_EPOLLRDHUP)
+            // 对端客户端关闭
             if (revents & EPOLLRDHUP) {
                 rev->pending_eof = 1;
             }
