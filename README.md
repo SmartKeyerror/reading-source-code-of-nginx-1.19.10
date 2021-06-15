@@ -1,5 +1,5 @@
 
-### nginx 源码目录结构
+## 1. nginx 源码目录结构
 
 ```bash
 .
@@ -22,3 +22,20 @@
 如果以理解 nginx 的运行机理为目标的话，那么只需要阅读几个核心目录下的源码文件即可，包括 `src/code`, `src/event`, `src/http` 以及 `src/stream`。
 
 其中 `src/http` 以及 `src/stream` 主要包含的是 HTTP 框架和 stream 机制的相关内容。而`src/code` 与 `src/event` 则是 nginx 运行时的核心代码文件，其中也隐藏着为什么 nginx 支持单机数十万的并发，以及 nginx 为什么运行如此之稳定的奥秘。
+
+## 2. 前置知识点
+
+- [信号](https://smartkeyerror.oss-cn-shenzhen.aliyuncs.com/Phyduck/linux-network/%E4%BF%A1%E5%8F%B7.pdf)
+- [信号集与信号掩码](https://smartkeyerror.oss-cn-shenzhen.aliyuncs.com/Phyduck/linux-network/%E4%BF%A1%E5%8F%B7%E9%9B%86%E4%B8%8E%E4%BF%A1%E5%8F%B7%E6%8E%A9%E7%A0%81.pdf)
+- [进程的创建](https://smartkeyerror.oss-cn-shenzhen.aliyuncs.com/Phyduck/linux-network/%E8%BF%9B%E7%A8%8B%E7%9A%84%E5%88%9B%E5%BB%BA.pdf)
+- [进程间通讯简介](https://smartkeyerror.oss-cn-shenzhen.aliyuncs.com/Phyduck/linux-network/%E8%BF%9B%E7%A8%8B%E9%97%B4%E9%80%9A%E8%AE%AF%E7%AE%80%E4%BB%8B.pdf)
+- [DAEMON](https://smartkeyerror.oss-cn-shenzhen.aliyuncs.com/Phyduck/linux-network/DAEMON.pdf)
+- [socket 编程问题一览(01)](https://smartkeyerror.oss-cn-shenzhen.aliyuncs.com/Phyduck/linux-network/socket%20%E7%BC%96%E7%A8%8B%E9%97%AE%E9%A2%98%E4%B8%80%E8%A7%88%2801%29.pdf)
+- [socket 编程问题一览(02)](https://smartkeyerror.oss-cn-shenzhen.aliyuncs.com/Phyduck/linux-network/socket%20%E7%BC%96%E7%A8%8B%E9%97%AE%E9%A2%98%E4%B8%80%E8%A7%88%2802%29.pdf)
+- [epoll 原理剖析](https://smartkeyerror.oss-cn-shenzhen.aliyuncs.com/Phyduck/linux-network/epoll%20%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90.pdf)
+
+## 3. nginx 核心数据结构与关键流程
+
+### 3.1 核心结构概览
+
+![img_1.png](core-structure.png)
