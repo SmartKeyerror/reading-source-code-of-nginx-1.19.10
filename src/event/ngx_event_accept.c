@@ -14,6 +14,9 @@ static ngx_int_t ngx_disable_accept_events(ngx_cycle_t *cycle, ngx_uint_t all);
 static void ngx_close_accepted_connection(ngx_connection_t *c);
 
 
+/*
+ * 处理连接事件的回调函数
+ */
 void
 ngx_event_accept(ngx_event_t *ev)
 {
@@ -57,6 +60,7 @@ ngx_event_accept(ngx_event_t *ev)
 
 #if (NGX_HAVE_ACCEPT4)
         if (use_accept4) {
+            // 一般来说高版本的 Linux 操作系统中会调用 accept4() 函数，直接将 socket 设置为 NONBLOCKING
             s = accept4(lc->fd, &sa.sockaddr, &socklen, SOCK_NONBLOCK);
         } else {
             s = accept(lc->fd, &sa.sockaddr, &socklen);
@@ -65,6 +69,7 @@ ngx_event_accept(ngx_event_t *ev)
         s = accept(lc->fd, &sa.sockaddr, &socklen);
 #endif
 
+        // 下面的一整段都是在进行错误处理
         if (s == (ngx_socket_t) -1) {
             err = ngx_socket_errno;
 
@@ -133,9 +138,13 @@ ngx_event_accept(ngx_event_t *ev)
         (void) ngx_atomic_fetch_add(ngx_stat_accepted, 1);
 #endif
 
+        /*
+         * 设置负载均衡阈值 ngx_accept_disabled，该阈值总是子进程允许的连接总数的 1/8 再减去空闲连接数
+         */
         ngx_accept_disabled = ngx_cycle->connection_n / 8
                               - ngx_cycle->free_connection_n;
 
+        // 获取空闲连接
         c = ngx_get_connection(s, ev->log);
 
         if (c == NULL) {
@@ -153,6 +162,7 @@ ngx_event_accept(ngx_event_t *ev)
         (void) ngx_atomic_fetch_add(ngx_stat_active, 1);
 #endif
 
+        // 创建建立连接的读/写所需要的内存池
         c->pool = ngx_create_pool(ls->pool_size, ev->log);
         if (c->pool == NULL) {
             ngx_close_accepted_connection(c);
@@ -179,6 +189,7 @@ ngx_event_accept(ngx_event_t *ev)
 
         /* set a blocking mode for iocp and non-blocking mode for others */
 
+        // 设置非阻塞 socket
         if (ngx_inherited_nonblocking) {
             if (ngx_event_flags & NGX_USE_IOCP_EVENT) {
                 if (ngx_blocking(s) == -1) {
@@ -307,6 +318,7 @@ ngx_event_accept(ngx_event_t *ev)
         log->data = NULL;
         log->handler = NULL;
 
+        // 调用回调方法处理新的连接
         ls->handler(c);
 
         if (ngx_event_flags & NGX_USE_KQUEUE_EVENT) {
@@ -314,12 +326,31 @@ ngx_event_accept(ngx_event_t *ev)
         }
 
     } while (ev->available);
+    // available 就在这里使用，表示一次建立多个 TCP 连接，只要 available 的值为 1，那么 accept() 过程就会一直进行下去，直到没有
+    // 新的连接为止
 }
 
 
+/*
+ * nginx 多个子进程同时 accept 同一个监听端口时会出现惊群问题。
+ *
+ * 在 Linux 2.6 版本之前，如果有新的 TCP 连接建立的话，那么会唤醒所有等待的进程，但是只会有一个子进程能够成功的从监听队列中取走该 TCP
+ * 连接。因此，唤醒所有的进程是没有意义的，这其实和条件变量的 condition 唤醒规则是一样的。如果多个线程执行相同的任务的话，那么只需要调用
+ * pthread_cond_signal() 即可，完全不需要调用 pthread_cond_broadcast() 来唤醒所有的线程。
+ *
+ * 因此，在 Linux 2.6 以后，这个问题在内核被修复，只会有一个进程被唤醒，从而获取已完成连接的 TCP socket。那么，为什么 nginx 还需要实现一个
+ * 自己的 ngx_trylock_accept_mutex() 函数呢?
+ *
+ * 原因在于可移植性，nginx 可不用依赖于 OS 的底层机制，完全可以自己控制，只不过使用锁的方式开销更大一些。同时，多个 worker 之间的负载均衡必须
+ * 在有锁的情况下才能实现。
+ */
 ngx_int_t
 ngx_trylock_accept_mutex(ngx_cycle_t *cycle)
 {
+    /*
+     *
+     * ngx_shmtx_trylock 为非阻塞的，返回 1 表示获取锁成功，返回 0 则表示获取锁失败
+     */
     if (ngx_shmtx_trylock(&ngx_accept_mutex)) {
 
         ngx_log_debug0(NGX_LOG_DEBUG_EVENT, cycle->log, 0,

@@ -42,6 +42,10 @@ void ngx_event_process_posted(ngx_cycle_t *cycle, ngx_queue_t *posted);
 void ngx_event_move_posted_next(ngx_cycle_t *cycle);
 
 
+/*
+ * post 事件处理机制的具体实现，主要由 ngx_posted_accept_events 和 ngx_posted_events 这两个队列实现
+ * 其中 ngx_posted_accept_events 表示 accept 事件，ngx_posted_events 则是普通的读/写事件
+ */
 extern ngx_queue_t  ngx_posted_accept_events;
 extern ngx_queue_t  ngx_posted_next_events;
 extern ngx_queue_t  ngx_posted_events;
