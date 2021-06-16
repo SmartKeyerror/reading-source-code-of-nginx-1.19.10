@@ -19,9 +19,9 @@
     └── stream    # stream 模块相关代码
 ```
 
-如果以理解 nginx 的运行机理为目标的话，那么只需要阅读几个核心目录下的源码文件即可，包括 `src/code`, `src/event`, `src/http` 以及 `src/stream`。
+如果以理解 nginx 的运行机理为目标的话，那么只需要阅读几个核心目录下的源码文件即可，包括 `src/core`, `src/event`, `src/http` 以及 `src/stream`。
 
-其中 `src/http` 以及 `src/stream` 主要包含的是 HTTP 框架和 stream 机制的相关内容。而`src/code` 与 `src/event` 则是 nginx 运行时的核心代码文件，其中也隐藏着为什么 nginx 支持单机数十万的并发，以及 nginx 为什么运行如此之稳定的奥秘。
+其中 `src/http` 以及 `src/stream` 主要包含的是 HTTP 框架和 stream 机制的相关内容。而`src/core` 与 `src/event` 则是 nginx 运行时的核心代码文件，其中也隐藏着为什么 nginx 支持单机数十万的并发，以及 nginx 为什么运行如此之稳定的奥秘。
 
 ## 2. 前置知识点
 
