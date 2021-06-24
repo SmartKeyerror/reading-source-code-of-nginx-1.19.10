@@ -214,14 +214,16 @@ uintptr_t ngx_escape_html(u_char *dst, u_char *src, size_t size);
 uintptr_t ngx_escape_json(u_char *dst, u_char *src, size_t size);
 
 
+// String 类型的对象在红黑树中的节点表示
 typedef struct {
     ngx_rbtree_node_t         node;
     ngx_str_t                 str;
 } ngx_str_node_t;
 
-
+// 向红黑树中插入 ngx_str_node_t 对象，需要将 ngx_str_node_t 强制类型转换成 ngx_rbtree_node_t
 void ngx_str_rbtree_insert_value(ngx_rbtree_node_t *temp,
     ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
+
 ngx_str_node_t *ngx_str_rbtree_lookup(ngx_rbtree_t *rbtree, ngx_str_t *name,
     uint32_t hash);
 

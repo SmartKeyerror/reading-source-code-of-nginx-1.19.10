@@ -20,10 +20,15 @@ typedef ngx_int_t   ngx_rbtree_key_int_t;
 typedef struct ngx_rbtree_node_s  ngx_rbtree_node_t;
 
 struct ngx_rbtree_node_s {
+    // unsigned long 类型的 key
     ngx_rbtree_key_t       key;
+    // 左孩子节点
     ngx_rbtree_node_t     *left;
+    // 右孩子节点
     ngx_rbtree_node_t     *right;
+    // 父亲节点
     ngx_rbtree_node_t     *parent;
+    // 节点颜色，0 为黑色，1 为红色
     u_char                 color;
     u_char                 data;
 };
@@ -35,8 +40,11 @@ typedef void (*ngx_rbtree_insert_pt) (ngx_rbtree_node_t *root,
     ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
 
 struct ngx_rbtree_s {
+    // 根节点
     ngx_rbtree_node_t     *root;
+    // 哨兵节点，即 NULL
     ngx_rbtree_node_t     *sentinel;
+    // 向红黑树中插入节点的方法，我们可自定义实现
     ngx_rbtree_insert_pt   insert;
 };
 
@@ -50,10 +58,13 @@ struct ngx_rbtree_s {
 
 void ngx_rbtree_insert(ngx_rbtree_t *tree, ngx_rbtree_node_t *node);
 void ngx_rbtree_delete(ngx_rbtree_t *tree, ngx_rbtree_node_t *node);
+
+// nginx 所实现的 2 个向红黑树中添加节点的方法
 void ngx_rbtree_insert_value(ngx_rbtree_node_t *root, ngx_rbtree_node_t *node,
     ngx_rbtree_node_t *sentinel);
 void ngx_rbtree_insert_timer_value(ngx_rbtree_node_t *root,
     ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
+
 ngx_rbtree_node_t *ngx_rbtree_next(ngx_rbtree_t *tree,
     ngx_rbtree_node_t *node);
 
