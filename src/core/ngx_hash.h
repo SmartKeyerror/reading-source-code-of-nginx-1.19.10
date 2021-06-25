@@ -13,19 +13,26 @@
 #include <ngx_core.h>
 
 
+// ngx_hash_elt_t 为哈希表中的元素类型，其大小是不定的
 typedef struct {
+    // 指向实际保存的 value
     void             *value;
+    // key 的长度
     u_short           len;
+    // key 的首地址，name 实际上是一个变长数组
     u_char            name[1];
 } ngx_hash_elt_t;
 
 
 typedef struct {
+    // 指向哈希表的首地址
     ngx_hash_elt_t  **buckets;
+    // 哈希表中 bucket 总数
     ngx_uint_t        size;
 } ngx_hash_t;
 
 
+// 支持通配符的哈希表
 typedef struct {
     ngx_hash_t        hash;
     void             *value;
@@ -43,8 +50,11 @@ typedef ngx_uint_t (*ngx_hash_key_pt) (u_char *data, size_t len);
 
 
 typedef struct {
+    // 精确查询 hashmap
     ngx_hash_t            hash;
+    // 前置通配符匹配 hashmap
     ngx_hash_wildcard_t  *wc_head;
+    // 后置通配符匹配 hashmap
     ngx_hash_wildcard_t  *wc_tail;
 } ngx_hash_combined_t;
 
