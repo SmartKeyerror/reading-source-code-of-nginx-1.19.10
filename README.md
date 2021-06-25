@@ -39,3 +39,7 @@
 ### 3.1 核心结构概览
 
 ![img_1.png](core-structure.png)
+
+### 3.2 Nginx 相关内容解析
+
+1. [Nginx 数据结构](https://github.com/SmartKeyerror/reading-source-code-of-nginx-1.19.10/tree/master/articles/01-Nginx-Data-Structure)
